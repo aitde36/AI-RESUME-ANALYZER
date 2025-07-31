@@ -1,77 +1,166 @@
-import React from 'react'
+import type { ReactNode } from "react";
+import React, { createContext, useContext, useState } from "react";
+import { cn } from "~/lib/utils";
 
-interface Suggestion {
-  type: "good" | "improve";
-  tip: string;
+interface AccordionContextType {
+    activeItems: string[];
+    toggleItem: (id: string) => void;
+    isItemActive: (id: string) => boolean;
 }
 
-interface ATSProps {
-  score: number;
-  suggestions: Suggestion[];
+const AccordionContext = createContext<AccordionContextType | undefined>(
+    undefined
+);
+
+const useAccordion = () => {
+    const context = useContext(AccordionContext);
+    if (!context) {
+        throw new Error("Accordion components must be used within an Accordion");
+    }
+    return context;
+};
+
+interface AccordionProps {
+    children: ReactNode;
+    defaultOpen?: string;
+    allowMultiple?: boolean;
+    className?: string;
 }
 
-const ATS: React.FC<ATSProps> = ({ score, suggestions }) => {
-  // Determine background gradient based on score
-  const gradientClass = score > 69
-    ? 'from-green-100'
-    : score > 49
-      ? 'from-yellow-100'
-      : 'from-red-100';
+export const Accordion: React.FC<AccordionProps> = ({
+                                                        children,
+                                                        defaultOpen,
+                                                        allowMultiple = false,
+                                                        className = "",
+                                                    }) => {
+    const [activeItems, setActiveItems] = useState<string[]>(
+        defaultOpen ? [defaultOpen] : []
+    );
 
-  // Determine icon based on score
-  const iconSrc = score > 69
-    ? '/icons/ats-good.svg'
-    : score > 49
-      ? '/icons/ats-warning.svg'
-      : '/icons/ats-bad.svg';
+    const toggleItem = (id: string) => {
+        setActiveItems((prev) => {
+            if (allowMultiple) {
+                return prev.includes(id)
+                    ? prev.filter((item) => item !== id)
+                    : [...prev, id];
+            } else {
+                return prev.includes(id) ? [] : [id];
+            }
+        });
+    };
 
-  // Determine subtitle based on score
-  const subtitle = score > 69
-    ? 'Great Job!'
-    : score > 49
-      ? 'Good Start'
-      : 'Needs Improvement';
+    const isItemActive = (id: string) => activeItems.includes(id);
 
-  return (
-    <div className={`bg-gradient-to-b ${gradientClass} to-white rounded-2xl shadow-md w-full p-6`}>
-      {/* Top section with icon and headline */}
-      <div className="flex items-center gap-4 mb-6">
-        <img src={iconSrc} alt="ATS Score Icon" className="w-12 h-12" />
-        <div>
-          <h2 className="text-2xl font-bold">ATS Score - {score}/100</h2>
+    return (
+        <AccordionContext.Provider
+            value={{ activeItems, toggleItem, isItemActive }}
+        >
+            <div className={`space-y-2 ${className}`}>{children}</div>
+        </AccordionContext.Provider>
+    );
+};
+
+interface AccordionItemProps {
+    id: string;
+    children: ReactNode;
+    className?: string;
+}
+
+export const AccordionItem: React.FC<AccordionItemProps> = ({
+                                                                id,
+                                                                children,
+                                                                className = "",
+                                                            }) => {
+    return (
+        <div className={`overflow-hidden border-b border-gray-200 ${className}`}>
+            {children}
         </div>
-      </div>
+    );
+};
 
-      {/* Description section */}
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">{subtitle}</h3>
-        <p className="text-gray-600 mb-4">
-          This score represents how well your resume is likely to perform in Applicant Tracking Systems used by employers.
-        </p>
+interface AccordionHeaderProps {
+    itemId: string;
+    children: ReactNode;
+    className?: string;
+    icon?: ReactNode;
+    iconPosition?: "left" | "right";
+}
 
-        {/* Suggestions list */}
-        <div className="space-y-3">
-          {suggestions.map((suggestion, index) => (
-            <div key={index} className="flex items-start gap-3">
-              <img
-                src={suggestion.type === "good" ? "/icons/check.svg" : "/icons/warning.svg"}
-                alt={suggestion.type === "good" ? "Check" : "Warning"}
-                className="w-5 h-5 mt-1"
-              />
-              <p className={suggestion.type === "good" ? "text-green-700" : "text-amber-700"}>
-                {suggestion.tip}
-              </p>
+export const AccordionHeader: React.FC<AccordionHeaderProps> = ({
+                                                                    itemId,
+                                                                    children,
+                                                                    className = "",
+                                                                    icon,
+                                                                    iconPosition = "right",
+                                                                }) => {
+    const { toggleItem, isItemActive } = useAccordion();
+    const isActive = isItemActive(itemId);
+
+    const defaultIcon = (
+        <svg
+            className={cn("w-5 h-5 transition-transform duration-200", {
+                "rotate-180": isActive,
+            })}
+            fill="none"
+            stroke="#98A2B3"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+            />
+        </svg>
+    );
+
+    const handleClick = () => {
+        toggleItem(itemId);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            className={`
+        w-full px-4 py-3 text-left
+        focus:outline-none
+        transition-colors duration-200 flex items-center justify-between cursor-pointer
+        ${className}
+      `}
+        >
+            <div className="flex items-center space-x-3">
+                {iconPosition === "left" && (icon || defaultIcon)}
+                <div className="flex-1">{children}</div>
             </div>
-          ))}
-        </div>
-      </div>
+            {iconPosition === "right" && (icon || defaultIcon)}
+        </button>
+    );
+};
 
-      {/* Closing encouragement */}
-      <p className="text-gray-700 italic">
-        Keep refining your resume to improve your chances of getting past ATS filters and into the hands of recruiters.
-      </p>
-    </div>
-  )
+interface AccordionContentProps {
+    itemId: string;
+    children: ReactNode;
+    className?: string;
 }
 
-export default ATS
+export const AccordionContent: React.FC<AccordionContentProps> = ({
+                                                                      itemId,
+                                                                      children,
+                                                                      className = "",
+                                                                  }) => {
+    const { isItemActive } = useAccordion();
+    const isActive = isItemActive(itemId);
+
+    return (
+        <div
+            className={`
+        overflow-hidden transition-all duration-300 ease-in-out
+        ${isActive ? "max-h-fit opacity-100" : "max-h-0 opacity-0"}
+        ${className}
+      `}
+        >
+            <div className="px-4 py-3 ">{children}</div>
+        </div>
+    );
+};
